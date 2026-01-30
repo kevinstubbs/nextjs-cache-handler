@@ -11,8 +11,7 @@ const nextConfig = {
   //     hmrRefreshes: true,
   //   },
   // },
-  // cacheHandler: path.resolve(__dirname, './cacheHandler/dist/file-cache-handler.js'),
-  cacheHandler: path.resolve(__dirname, './cacheHandler/dist/gcs-cache-handler.js'),
+  cacheHandler: path.resolve(__dirname, './cache-handler.mjs'),
   cacheMaxMemorySize: 0, // disable default in-memory caching
   headers: async () => {
     return [

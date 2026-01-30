@@ -8,20 +8,16 @@
     "build": "npm run build:cache-handler && next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "playwright test",
-    "test:headed": "playwright test --headed",
-    "test:debug": "playwright test --debug",
     "test:integration": "jest",
     "test:integration:watch": "jest --watch"
   },
   "dependencies": {
-    "@google-cloud/storage": "^7.18.0",
+    "@pantheon-systems/nextjs-cache-handler": "file:./package",
     "next": "15.5.9",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.48.0",
     "@tailwindcss/postcss": "^4",
     "@types/jest": "^29.5.12",
     "@types/node": "^20",

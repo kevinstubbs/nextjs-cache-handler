@@ -30,6 +30,7 @@ app/
 ### Cache Handler Interface
 
 Both handlers implement the Next.js cache handler interface:
+
 - `get(key)`: Retrieve cached data
 - `set(key, data, context)`: Store data with optional tags
 - `revalidateTag(tag)`: Invalidate all entries with specific tag
@@ -49,21 +50,27 @@ File: .next/cache/tags/tags.json
 ### Code Structure Principles
 
 #### 1. Prefer Smaller Functions
+
 Break down complex operations into smaller, focused functions with single responsibilities.
 
 **Good:**
+
 ```typescript
 async function validateCacheKey(key: string): boolean {
   return key && key.length > 0;
 }
 
-async function buildCachePath(key: string, type: 'fetch' | 'route'): string {
+async function buildCachePath(key: string, type: "fetch" | "route"): string {
   return `${type}-cache/${key}.json`;
 }
 
-async function setCacheEntry(key: string, data: any, type: 'fetch' | 'route'): Promise<void> {
+async function setCacheEntry(
+  key: string,
+  data: any,
+  type: "fetch" | "route",
+): Promise<void> {
   if (!validateCacheKey(key)) {
-    throw new Error('Invalid cache key');
+    throw new Error("Invalid cache key");
   }
 
   const path = buildCachePath(key, type);
@@ -72,8 +79,13 @@ async function setCacheEntry(key: string, data: any, type: 'fetch' | 'route'): P
 ```
 
 **Avoid:**
+
 ```typescript
-async function setCacheEntry(key: string, data: any, type: 'fetch' | 'route'): Promise<void> {
+async function setCacheEntry(
+  key: string,
+  data: any,
+  type: "fetch" | "route",
+): Promise<void> {
   if (key && key.length > 0) {
     const path = `${type}-cache/${key}.json`;
     // ... 50+ lines of complex logic
@@ -82,11 +94,16 @@ async function setCacheEntry(key: string, data: any, type: 'fetch' | 'route'): P
 ```
 
 #### 2. Avoid Multiple Encapsulation
+
 Instead of nesting if statements, break logic into separate functions or use early returns.
 
 **Good:**
+
 ```typescript
-async function processTagInvalidation(tag: string, tagsMapping: Record<string, string[]>): Promise<string[]> {
+async function processTagInvalidation(
+  tag: string,
+  tagsMapping: Record<string, string[]>,
+): Promise<string[]> {
   const cacheKeys = tagsMapping[tag] || [];
 
   if (cacheKeys.length === 0) {
@@ -112,8 +129,12 @@ async function deleteCacheEntries(keys: string[]): Promise<string[]> {
 ```
 
 **Avoid:**
+
 ```typescript
-async function processTagInvalidation(tag: string, tagsMapping: Record<string, string[]>): Promise<string[]> {
+async function processTagInvalidation(
+  tag: string,
+  tagsMapping: Record<string, string[]>,
+): Promise<string[]> {
   const cacheKeys = tagsMapping[tag] || [];
 
   if (cacheKeys.length > 0) {
@@ -135,9 +156,11 @@ async function processTagInvalidation(tag: string, tagsMapping: Record<string, s
 ```
 
 #### 3. Prefer Flatter Code Structure
+
 Use early returns and guard clauses to reduce nesting levels.
 
 **Good:**
+
 ```typescript
 async function updateTagsMapping(key: string, tags: string[]): Promise<void> {
   if (!tags || tags.length === 0) {
@@ -161,6 +184,7 @@ async function updateTagsMapping(key: string, tags: string[]): Promise<void> {
 ```
 
 **Avoid:**
+
 ```typescript
 async function updateTagsMapping(key: string, tags: string[]): Promise<void> {
   if (tags && tags.length > 0) {
@@ -182,9 +206,11 @@ async function updateTagsMapping(key: string, tags: string[]): Promise<void> {
 ```
 
 #### 4. Targeted Try-Catch Blocks
+
 Use specific, focused try-catch blocks rather than wrapping large code sections.
 
 **Good:**
+
 ```typescript
 async function getCacheEntry(key: string): Promise<CacheData | null> {
   const data = await readCacheFile(key);
@@ -204,9 +230,9 @@ async function getCacheEntry(key: string): Promise<CacheData | null> {
 
 async function readCacheFile(key: string): Promise<string | null> {
   try {
-    return await fs.readFile(buildCachePath(key), 'utf-8');
+    return await fs.readFile(buildCachePath(key), "utf-8");
   } catch (readError) {
-    if (readError.code === 'ENOENT') {
+    if (readError.code === "ENOENT") {
       return null; // File doesn't exist
     }
     throw readError; // Re-throw unexpected errors
@@ -215,10 +241,11 @@ async function readCacheFile(key: string): Promise<string | null> {
 ```
 
 **Avoid:**
+
 ```typescript
 async function getCacheEntry(key: string): Promise<CacheData | null> {
   try {
-    const data = await fs.readFile(buildCachePath(key), 'utf-8');
+    const data = await fs.readFile(buildCachePath(key), "utf-8");
     const parsed = JSON.parse(data);
     const deserialized = deserializeCacheData(parsed);
 
@@ -234,9 +261,11 @@ async function getCacheEntry(key: string): Promise<CacheData | null> {
 ```
 
 #### 5. Function Naming and Documentation
+
 Use descriptive function names that clearly indicate purpose and include comments explaining objectives.
 
 **Good:**
+
 ```typescript
 /**
  * Initializes the tag mapping system by creating the tags.json file if it doesn't exist.
@@ -306,62 +335,8 @@ CACHE_BUCKET=your-bucket   # Required when using GCS handler
 ## Cache Testing
 
 Visit `/cache-test` for an interactive interface to:
+
 - View cache statistics
 - Browse cache entries with tags
 - Test cache invalidation by tag
 - Clear cache storage
-
-## Automated Testing
-
-The project includes Playwright end-to-end tests that validate cache functionality:
-
-### Setup
-```bash
-# Install dependencies (including Playwright)
-npm install
-
-# Install browser binaries (one-time setup)
-npx playwright install
-```
-
-### Running Tests
-```bash
-# Run all tests headlessly
-npm test
-
-# Run tests with browser UI visible
-npm run test:headed
-
-# Run tests in debug mode (step through tests)
-npm run test:debug
-
-# Run specific test file
-npx playwright test tests/cache.spec.ts
-```
-
-### Test Coverage
-
-The automated tests validate:
-
-1. **Page Loading**: Ensures the cache-test page loads correctly
-2. **No-Cache Behavior**: Validates that `cache: 'no-store'` endpoints always fetch fresh data and return appropriate headers
-3. **Force-Cache Behavior**: Tests that `cache: 'force-cache'` endpoints return faster responses on subsequent requests
-4. **Cache Statistics**: Verifies that cache stats can be loaded and display entry information
-5. **Tag Revalidation**: Tests on-demand cache invalidation using cache tags
-
-### Test Architecture
-
-The tests are built with these principles:
-- **Real Environment**: Tests run against a fully built and deployed Next.js application
-- **Network Monitoring**: Captures actual HTTP requests/responses to validate cache behavior
-- **Header Validation**: Checks that appropriate cache-control headers are present
-- **Performance Verification**: Measures response times to confirm cache hits are faster
-- **Cross-Browser**: Tests run on Chromium, Firefox, and WebKit
-
-### Example Test Output
-
-When cache is working correctly, you should see:
-- No-cache endpoints always take 100ms+ (external API call)
-- Force-cache endpoints take <10ms on subsequent calls (cache hit)
-- Appropriate cache-control headers in responses
-- Cache statistics show populated entries with tags

@@ -46,10 +46,6 @@ next-env.d.ts
 # local cache metadata
 /.cache/
 
-# playwright
-/playwright-report/
-/test-results/
-
 # jest
 /coverage/
 jest.log
