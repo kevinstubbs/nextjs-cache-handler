@@ -22,13 +22,6 @@ export interface CacheHandlerConfig {
   type?: 'auto' | 'file' | 'gcs';
 
   /**
-   * GCS bucket name. Required when type is 'gcs'.
-   * Defaults to CACHE_BUCKET environment variable.
-   */
-  bucket?: string;
-
-
-  /**
    * Logging configuration for debugging cache operations.
    */
   logging?: {

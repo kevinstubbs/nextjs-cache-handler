@@ -34,22 +34,20 @@ import { GcsCacheHandler, getSharedCacheStats as getGcsCacheStats, clearSharedCa
 export function createCacheHandler(config?: CacheHandlerConfig): typeof FileCacheHandler | typeof GcsCacheHandler {
   const type = config?.type ?? 'auto';
 
-  if (shouldUseGcs(type, config?.bucket)) {
+  if (shouldUseGcs(type)) {
     return GcsCacheHandler;
   }
 
   return FileCacheHandler;
 }
 
-function shouldUseGcs(type: 'auto' | 'file' | 'gcs', bucket?: string): boolean {
+function shouldUseGcs(type: 'auto' | 'file' | 'gcs'): boolean {
   if (type === 'gcs') {
     return true;
   }
 
   if (type === 'auto') {
-    // TODO: remove bucket from CacheHandlerConfig as we don't support custom buckets but for now. This may be useful if we open this package to public. But we will then need to allow gcs configuration
-    const hasBucket = bucket || process.env.CACHE_BUCKET;
-    return !!hasBucket;
+    return !!process.env.CACHE_BUCKET;
   }
 
   return false;
