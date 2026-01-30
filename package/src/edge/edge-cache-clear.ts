@@ -164,6 +164,13 @@ export class EdgeCacheClear {
   }
 
   /**
+   * Clear a single path in the background (non-blocking).
+   */
+  clearPathInBackground(routePath: string, context: string): void {
+    this.clearPathsInBackground([routePath], context);
+  }
+
+  /**
    * Clear cache entries by key/tag.
    * @param keys Array of cache keys/tags to clear
    */

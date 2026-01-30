@@ -226,6 +226,24 @@ describe('EdgeCacheClear', () => {
       expect(() => clearer.clearPathsInBackground(['/path'], 'test')).not.toThrow();
     });
 
+    it('clearPathInBackground should delegate to clearPathsInBackground', async () => {
+      vi.mocked(fetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+      } as Response);
+
+      const clearer = new EdgeCacheClear();
+      clearer.clearPathInBackground('/single-path', 'ISR update');
+
+      // Wait for background operation
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/paths/single-path'),
+        expect.objectContaining({ method: 'DELETE' })
+      );
+    });
+
     it('clearKeysInBackground should not throw', async () => {
       vi.mocked(fetch).mockResolvedValue({
         ok: true,

@@ -292,6 +292,11 @@ export abstract class BaseCacheHandler {
         console.log(`[${this.handlerName}] Updated tags mapping for ${cacheKey} with tags:`, tags);
       }
 
+      // For route cache updates (ISR), trigger edge cache invalidation
+      if (cacheType === 'route') {
+        this.onRouteCacheSet(cacheKey);
+      }
+
       console.log(`[${this.handlerName}] Cached ${cacheKey} in ${cacheType} cache`);
     } catch (error) {
       console.error(`[${this.handlerName}] Error setting cache for key ${cacheKey}:`, error);
@@ -346,6 +351,14 @@ export abstract class BaseCacheHandler {
    * Subclasses can override to perform additional cleanup.
    */
   protected async onRevalidateComplete(_tags: string[], _deletedKeys: string[]): Promise<void> {
+    // Default implementation does nothing
+  }
+
+  /**
+   * Hook called when a route cache entry is set (ISR page update).
+   * Subclasses can override to perform edge cache invalidation.
+   */
+  protected onRouteCacheSet(_cacheKey: string): void {
     // Default implementation does nothing
   }
 

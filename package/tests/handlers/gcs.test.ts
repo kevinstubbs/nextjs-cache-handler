@@ -172,6 +172,82 @@ describe('GcsCacheHandler', () => {
 
       expect(mockBucket.file).toHaveBeenCalledWith('route-cache/key.json');
     });
+
+    it('should clear edge cache when setting route cache entry (ISR update)', async () => {
+      process.env.OUTBOUND_PROXY_ENDPOINT = 'proxy.example.com:8080';
+
+      mockFile.exists.mockResolvedValue([true]);
+      mockFile.download.mockResolvedValue([Buffer.from('{}')]);
+      vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200 } as Response);
+
+      const handler = new GcsCacheHandler({} as any);
+      await handler.set('/blogs/my-post', { kind: 'APP_PAGE' as const } as any, { tags: [] });
+
+      // Wait for background edge cache clear
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Verify edge cache was cleared for the route path
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/paths/blogs/my-post'),
+        expect.objectContaining({ method: 'DELETE' })
+      );
+    });
+
+    it('should not clear edge cache when setting fetch cache entry', async () => {
+      process.env.OUTBOUND_PROXY_ENDPOINT = 'proxy.example.com:8080';
+
+      mockFile.exists.mockResolvedValue([true]);
+      mockFile.download.mockResolvedValue([Buffer.from('{}')]);
+      vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200 } as Response);
+
+      const handler = new GcsCacheHandler({} as any);
+      await handler.set('fetch-key', { kind: 'FETCH' as const } as any, { tags: [] });
+
+      // Wait to ensure no background edge cache clear happens
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Fetch cache entries should not trigger edge cache clearing
+      expect(fetch).not.toHaveBeenCalledWith(
+        expect.stringContaining('/paths/'),
+        expect.anything()
+      );
+    });
+
+    it('should handle route cache keys with underscores (encoded paths)', async () => {
+      process.env.OUTBOUND_PROXY_ENDPOINT = 'proxy.example.com:8080';
+
+      mockFile.exists.mockResolvedValue([true]);
+      mockFile.download.mockResolvedValue([Buffer.from('{}')]);
+      vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200 } as Response);
+
+      const handler = new GcsCacheHandler({} as any);
+      // Some cache keys use underscores to encode path separators
+      await handler.set('_blogs_my-post', { kind: 'APP_PAGE' as const } as any, { tags: [] });
+
+      // Wait for background edge cache clear
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Should convert underscores to slashes
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/paths/blogs/my-post'),
+        expect.objectContaining({ method: 'DELETE' })
+      );
+    });
+
+    it('should not clear edge cache when edge clearer is not configured', async () => {
+      // OUTBOUND_PROXY_ENDPOINT is not set (default in beforeEach)
+      mockFile.exists.mockResolvedValue([true]);
+      mockFile.download.mockResolvedValue([Buffer.from('{}')]);
+
+      const handler = new GcsCacheHandler({} as any);
+      await handler.set('/blogs/my-post', { kind: 'APP_PAGE' as const } as any, { tags: [] });
+
+      // Wait to ensure no edge cache clear happens
+      await new Promise((r) => setTimeout(r, 50));
+
+      // No fetch calls for edge cache clearing
+      expect(fetch).not.toHaveBeenCalled();
+    });
   });
 
   describe('revalidateTag', () => {

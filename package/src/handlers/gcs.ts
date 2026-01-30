@@ -226,6 +226,34 @@ export class GcsCacheHandler extends BaseCacheHandler {
     }
   }
 
+  /**
+   * Called when a route cache entry is set (ISR page update).
+   * Clears the edge cache for this specific route so users get the fresh version.
+   */
+  protected override onRouteCacheSet(cacheKey: string): void {
+    if (!this.edgeCacheClearer) {
+      return;
+    }
+
+    const routePath = this.cacheKeyToRoutePath(cacheKey);
+    this.edgeCacheClearer.clearPathInBackground(routePath, `ISR route update: ${routePath}`);
+  }
+
+  private cacheKeyToRoutePath(cacheKey: string): string {
+    // Cache keys may be encoded (e.g., underscores for slashes)
+    // Convert to a proper path format
+    if (cacheKey.startsWith('/')) {
+      return cacheKey;
+    }
+
+    // Handle encoded paths (underscores represent slashes in some cases)
+    if (cacheKey.startsWith('_')) {
+      return cacheKey.replace(/_/g, '/');
+    }
+
+    return `/${cacheKey}`;
+  }
+
   private extractRoutePaths(keys: string[]): string[] {
     return keys
       .filter((key) => key.startsWith('/') || key.startsWith('_'))
