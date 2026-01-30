@@ -17,7 +17,10 @@
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
     "next.js",
@@ -37,7 +40,9 @@
   },
   "devDependencies": {
     "@types/node": "^20",
-    "typescript": "^5.0.0"
+    "@vitest/coverage-v8": "^4.0.18",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.18"
   },
   "engines": {
     "node": ">=18.0.0"
