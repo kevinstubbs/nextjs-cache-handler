@@ -51,7 +51,8 @@ export class FileCacheHandler extends BaseCacheHandler {
     });
 
     this.ensureCacheDir();
-    this.initializeSync();
+    // Initialize asynchronously (don't await to avoid blocking constructor)
+    this.initialize().catch(() => { });
   }
 
   private ensureCacheDir(): void {
@@ -71,10 +72,6 @@ export class FileCacheHandler extends BaseCacheHandler {
   // ============================================================================
 
   protected async initializeTagsMapping(): Promise<void> {
-    this.initializeTagsMappingSync();
-  }
-
-  protected initializeTagsMappingSync(): void {
     try {
       if (!fs.existsSync(this.tagsMapFile)) {
         fs.writeFileSync(this.tagsMapFile, JSON.stringify({}, null, 2), 'utf-8');
@@ -90,11 +87,6 @@ export class FileCacheHandler extends BaseCacheHandler {
   protected async readTagsMapping(): Promise<Record<string, string[]>> {
     // Flush pending updates before reading to ensure we have accurate data
     await this.tagsBuffer.flush();
-    return this.readTagsMappingDirect();
-  }
-
-  protected readTagsMappingSync(): Record<string, string[]> {
-    // Note: Can't flush buffer synchronously, so this may be stale
     return this.readTagsMappingDirect();
   }
 
@@ -116,18 +108,15 @@ export class FileCacheHandler extends BaseCacheHandler {
   }
 
   /**
-   * Write tags mapping - for bulk writes (used by buffer).
+   * Write tags mapping directly to file system.
+   * Used by the buffer for batched writes.
    */
   protected async writeTagsMapping(tagsMapping: Record<string, string[]>): Promise<void> {
     this.writeTagsMappingDirect(tagsMapping);
   }
 
-  protected writeTagsMappingSync(tagsMapping: Record<string, string[]>): void {
-    this.writeTagsMappingDirect(tagsMapping);
-  }
-
   /**
-   * Direct write to file system.
+   * Direct write to file system (sync).
    * Used internally by the buffer.
    */
   private writeTagsMappingDirect(tagsMapping: Record<string, string[]>): void {

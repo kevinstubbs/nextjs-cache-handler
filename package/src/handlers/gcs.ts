@@ -47,7 +47,7 @@ export class GcsCacheHandler extends BaseCacheHandler {
     this.tagsBuffer = new TagsBuffer({
       flushIntervalMs: 1000, // GCS rate limit is 1 write/second per object
       readTagsMapping: () => this.readTagsMappingDirect(),
-      writeTagsMapping: (mapping) => this.writeTagsMappingDirect(mapping),
+      writeTagsMapping: (mapping) => this.writeTagsMapping(mapping),
       handlerName: 'GcsCacheHandler',
     });
 
@@ -73,11 +73,6 @@ export class GcsCacheHandler extends BaseCacheHandler {
       console.error('[GcsCacheHandler] Error initializing tags mapping:', error);
       // Don't throw - tags mapping will be created on first write
     }
-  }
-
-  protected initializeTagsMappingSync(): void {
-    // GCS operations are async, so we just kick off the async version
-    this.initializeTagsMapping().catch(() => { });
   }
 
   /**
@@ -110,26 +105,11 @@ export class GcsCacheHandler extends BaseCacheHandler {
     }
   }
 
-  protected readTagsMappingSync(): Record<string, string[]> {
-    // GCS doesn't support sync operations, return empty and log warning
-    console.warn('[GcsCacheHandler] Sync tags mapping read not supported for GCS');
-    return {};
-  }
-
   /**
-   * Write tags mapping - this goes through the buffer for rate limiting.
-   * For direct writes (used by buffer), use writeTagsMappingDirect.
+   * Write tags mapping directly to GCS.
+   * Used by the buffer for batched writes.
    */
   protected async writeTagsMapping(tagsMapping: Record<string, string[]>): Promise<void> {
-    // For bulk writes, write directly (already rate-limited by buffer)
-    await this.writeTagsMappingDirect(tagsMapping);
-  }
-
-  /**
-   * Direct write to GCS without buffering.
-   * Used internally by the buffer.
-   */
-  private async writeTagsMappingDirect(tagsMapping: Record<string, string[]>): Promise<void> {
     try {
       const file = this.bucket.file(this.tagsMapKey);
       await file.save(JSON.stringify(tagsMapping, null, 2), {
@@ -139,10 +119,6 @@ export class GcsCacheHandler extends BaseCacheHandler {
       console.error('[GcsCacheHandler] Error writing tags mapping:', error);
       throw error; // Re-throw so buffer can retry
     }
-  }
-
-  protected writeTagsMappingSync(_tagsMapping: Record<string, string[]>): void {
-    console.warn('[GcsCacheHandler] Sync tags mapping write not supported for GCS');
   }
 
   /**

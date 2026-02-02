@@ -61,28 +61,13 @@ export abstract class BaseCacheHandler {
     }
   }
 
-  /**
-   * Synchronous initialization for handlers that need to initialize in constructor.
-   */
-  protected initializeSync(): void {
-    this.initializeTagsMappingSync();
-
-    if (!buildInvalidationChecked && !isBuildPhase()) {
-      this.checkBuildInvalidation();
-      buildInvalidationChecked = true;
-    }
-  }
-
   // ============================================================================
   // Abstract methods to be implemented by subclasses
   // ============================================================================
 
   protected abstract initializeTagsMapping(): Promise<void>;
-  protected abstract initializeTagsMappingSync(): void;
   protected abstract readTagsMapping(): Promise<Record<string, string[]>>;
-  protected abstract readTagsMappingSync(): Record<string, string[]>;
   protected abstract writeTagsMapping(tagsMapping: Record<string, string[]>): Promise<void>;
-  protected abstract writeTagsMappingSync(tagsMapping: Record<string, string[]>): void;
 
   protected abstract readCacheEntry(cacheKey: string, cacheType: 'fetch' | 'route'): Promise<CacheHandlerValue | null>;
   protected abstract writeCacheEntry(cacheKey: string, cacheValue: CacheHandlerValue, cacheType: 'fetch' | 'route'): Promise<void>;
