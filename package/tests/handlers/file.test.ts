@@ -102,6 +102,9 @@ describe('FileCacheHandler', () => {
     it('should update tags mapping when setting cache with tags', async () => {
       await handler.set('tagged-key', { kind: 'FETCH' as const } as any, { tags: ['tag1', 'tag2'] });
 
+      // Wait for the buffer to flush (file handler uses 100ms flush interval)
+      await new Promise((r) => setTimeout(r, 150));
+
       const tagsFile = path.join(tempDir, '.next', 'cache', 'tags', 'tags.json');
       const tagsMapping = JSON.parse(fs.readFileSync(tagsFile, 'utf-8'));
 
@@ -112,6 +115,9 @@ describe('FileCacheHandler', () => {
     it('should not duplicate keys in tag mapping', async () => {
       await handler.set('key1', { kind: 'FETCH' as const } as any, { tags: ['shared-tag'] });
       await handler.set('key1', { kind: 'FETCH' as const } as any, { tags: ['shared-tag'] });
+
+      // Wait for the buffer to flush
+      await new Promise((r) => setTimeout(r, 150));
 
       const tagsFile = path.join(tempDir, '.next', 'cache', 'tags', 'tags.json');
       const tagsMapping = JSON.parse(fs.readFileSync(tagsFile, 'utf-8'));

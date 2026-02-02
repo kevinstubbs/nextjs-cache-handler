@@ -8,6 +8,7 @@ import type {
 import { BaseCacheHandler, type BuildMeta } from './base.js';
 import { EdgeCacheClear, createEdgeCacheClearer } from '../edge/edge-cache-clear.js';
 import { getStaticRoutes } from '../utils/static-routes.js';
+import { TagsBuffer } from '../utils/tags-buffer.js';
 
 /**
  * Google Cloud Storage cache handler for production/Pantheon environments.
@@ -21,6 +22,7 @@ export class GcsCacheHandler extends BaseCacheHandler {
   private readonly tagsPrefix: string;
   private readonly tagsMapKey: string;
   private readonly edgeCacheClearer: EdgeCacheClear | null;
+  private readonly tagsBuffer: TagsBuffer;
 
   constructor(context: FileSystemCacheContext) {
     super(context, 'GcsCacheHandler');
@@ -41,12 +43,20 @@ export class GcsCacheHandler extends BaseCacheHandler {
 
     this.edgeCacheClearer = createEdgeCacheClearer();
 
+    // Create tags buffer for rate-limited writes
+    this.tagsBuffer = new TagsBuffer({
+      flushIntervalMs: 1000, // GCS rate limit is 1 write/second per object
+      readTagsMapping: () => this.readTagsMappingDirect(),
+      writeTagsMapping: (mapping) => this.writeTagsMappingDirect(mapping),
+      handlerName: 'GcsCacheHandler',
+    });
+
     // Initialize asynchronously (don't await to avoid blocking constructor)
     this.initialize().catch(() => { });
   }
 
   // ============================================================================
-  // Tags mapping implementation
+  // Tags mapping implementation (buffered for GCS rate limiting)
   // ============================================================================
 
   protected async initializeTagsMapping(): Promise<void> {
@@ -59,8 +69,9 @@ export class GcsCacheHandler extends BaseCacheHandler {
           metadata: { contentType: 'application/json' },
         });
       }
-    } catch {
-      // Silently fail - tags mapping will be created on first write
+    } catch (error) {
+      console.error('[GcsCacheHandler] Error initializing tags mapping:', error);
+      // Don't throw - tags mapping will be created on first write
     }
   }
 
@@ -69,7 +80,20 @@ export class GcsCacheHandler extends BaseCacheHandler {
     this.initializeTagsMapping().catch(() => { });
   }
 
+  /**
+   * Read tags mapping, flushing any pending updates first to ensure accuracy.
+   */
   protected async readTagsMapping(): Promise<Record<string, string[]>> {
+    // Flush pending updates before reading to ensure we have accurate data
+    await this.tagsBuffer.flush();
+    return this.readTagsMappingDirect();
+  }
+
+  /**
+   * Direct read from GCS without flushing buffer.
+   * Used internally by the buffer.
+   */
+  private async readTagsMappingDirect(): Promise<Record<string, string[]>> {
     try {
       const file = this.bucket.file(this.tagsMapKey);
       const [exists] = await file.exists();
@@ -92,7 +116,20 @@ export class GcsCacheHandler extends BaseCacheHandler {
     return {};
   }
 
+  /**
+   * Write tags mapping - this goes through the buffer for rate limiting.
+   * For direct writes (used by buffer), use writeTagsMappingDirect.
+   */
   protected async writeTagsMapping(tagsMapping: Record<string, string[]>): Promise<void> {
+    // For bulk writes, write directly (already rate-limited by buffer)
+    await this.writeTagsMappingDirect(tagsMapping);
+  }
+
+  /**
+   * Direct write to GCS without buffering.
+   * Used internally by the buffer.
+   */
+  private async writeTagsMappingDirect(tagsMapping: Record<string, string[]>): Promise<void> {
     try {
       const file = this.bucket.file(this.tagsMapKey);
       await file.save(JSON.stringify(tagsMapping, null, 2), {
@@ -100,11 +137,37 @@ export class GcsCacheHandler extends BaseCacheHandler {
       });
     } catch (error) {
       console.error('[GcsCacheHandler] Error writing tags mapping:', error);
+      throw error; // Re-throw so buffer can retry
     }
   }
 
   protected writeTagsMappingSync(_tagsMapping: Record<string, string[]>): void {
     console.warn('[GcsCacheHandler] Sync tags mapping write not supported for GCS');
+  }
+
+  /**
+   * Override to use buffered updates instead of immediate writes.
+   */
+  protected override async updateTagsMapping(cacheKey: string, tags: string[], isDelete = false): Promise<void> {
+    if (isDelete) {
+      this.tagsBuffer.deleteKey(cacheKey);
+    } else if (tags.length > 0) {
+      this.tagsBuffer.addTags(cacheKey, tags);
+    }
+    // Updates are queued and will be flushed automatically
+    console.log(`[GcsCacheHandler] Queued tags update for ${cacheKey} (pending: ${this.tagsBuffer.pendingCount})`);
+  }
+
+  /**
+   * Override to use buffered deletes instead of immediate writes.
+   */
+  protected override async updateTagsMappingBulkDelete(
+    cacheKeysToDelete: string[],
+    _tagsMapping: Record<string, string[]>
+  ): Promise<void> {
+    this.tagsBuffer.deleteKeys(cacheKeysToDelete);
+    // Force flush after bulk delete to ensure consistency for revalidation
+    await this.tagsBuffer.flush();
   }
 
   // ============================================================================

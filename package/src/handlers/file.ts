@@ -9,6 +9,7 @@ import type {
 } from '../types.js';
 import { BaseCacheHandler, type BuildMeta } from './base.js';
 import { getStaticRoutes } from '../utils/static-routes.js';
+import { TagsBuffer } from '../utils/tags-buffer.js';
 
 const writeFile = promisify(fs.writeFile);
 const readFile = promisify(fs.readFile);
@@ -25,6 +26,7 @@ export class FileCacheHandler extends BaseCacheHandler {
   private readonly buildMetaFile: string;
   private readonly tagsDir: string;
   private readonly tagsMapFile: string;
+  private readonly tagsBuffer: TagsBuffer;
 
   constructor(context: FileSystemCacheContext) {
     super(context, 'FileCacheHandler');
@@ -36,6 +38,17 @@ export class FileCacheHandler extends BaseCacheHandler {
     this.buildMetaFile = path.join(process.cwd(), '.cache', 'build-meta.json');
     this.tagsDir = path.join(this.baseDir, 'tags');
     this.tagsMapFile = path.join(this.tagsDir, 'tags.json');
+
+    // Create tags buffer for batched writes (improves performance)
+    this.tagsBuffer = new TagsBuffer({
+      flushIntervalMs: 100, // File system can handle faster flushes than GCS
+      readTagsMapping: () => Promise.resolve(this.readTagsMappingDirect()),
+      writeTagsMapping: (mapping) => {
+        this.writeTagsMappingDirect(mapping);
+        return Promise.resolve();
+      },
+      handlerName: 'FileCacheHandler',
+    });
 
     this.ensureCacheDir();
     this.initializeSync();
@@ -54,7 +67,7 @@ export class FileCacheHandler extends BaseCacheHandler {
   }
 
   // ============================================================================
-  // Tags mapping implementation
+  // Tags mapping implementation (buffered for improved performance)
   // ============================================================================
 
   protected async initializeTagsMapping(): Promise<void> {
@@ -71,11 +84,25 @@ export class FileCacheHandler extends BaseCacheHandler {
     }
   }
 
+  /**
+   * Read tags mapping, flushing any pending updates first to ensure accuracy.
+   */
   protected async readTagsMapping(): Promise<Record<string, string[]>> {
-    return this.readTagsMappingSync();
+    // Flush pending updates before reading to ensure we have accurate data
+    await this.tagsBuffer.flush();
+    return this.readTagsMappingDirect();
   }
 
   protected readTagsMappingSync(): Record<string, string[]> {
+    // Note: Can't flush buffer synchronously, so this may be stale
+    return this.readTagsMappingDirect();
+  }
+
+  /**
+   * Direct read from file system without flushing buffer.
+   * Used internally by the buffer.
+   */
+  private readTagsMappingDirect(): Record<string, string[]> {
     try {
       if (!fs.existsSync(this.tagsMapFile)) {
         return {};
@@ -88,16 +115,53 @@ export class FileCacheHandler extends BaseCacheHandler {
     }
   }
 
+  /**
+   * Write tags mapping - for bulk writes (used by buffer).
+   */
   protected async writeTagsMapping(tagsMapping: Record<string, string[]>): Promise<void> {
-    this.writeTagsMappingSync(tagsMapping);
+    this.writeTagsMappingDirect(tagsMapping);
   }
 
   protected writeTagsMappingSync(tagsMapping: Record<string, string[]>): void {
+    this.writeTagsMappingDirect(tagsMapping);
+  }
+
+  /**
+   * Direct write to file system.
+   * Used internally by the buffer.
+   */
+  private writeTagsMappingDirect(tagsMapping: Record<string, string[]>): void {
     try {
       fs.writeFileSync(this.tagsMapFile, JSON.stringify(tagsMapping, null, 2), 'utf-8');
     } catch (error) {
       console.error('[FileCacheHandler] Error writing tags mapping:', error);
+      throw error; // Re-throw so buffer can retry
     }
+  }
+
+  /**
+   * Override to use buffered updates instead of immediate writes.
+   */
+  protected override async updateTagsMapping(cacheKey: string, tags: string[], isDelete = false): Promise<void> {
+    if (isDelete) {
+      this.tagsBuffer.deleteKey(cacheKey);
+    } else if (tags.length > 0) {
+      this.tagsBuffer.addTags(cacheKey, tags);
+    }
+    // Updates are queued and will be flushed automatically
+    console.log(`[FileCacheHandler] Queued tags update for ${cacheKey} (pending: ${this.tagsBuffer.pendingCount})`);
+  }
+
+  /**
+   * Override to use buffered deletes instead of immediate writes.
+   */
+  protected override async updateTagsMappingBulkDelete(
+    cacheKeysToDelete: string[],
+    _tagsMapping: Record<string, string[]>
+  ): Promise<void> {
+    this.tagsBuffer.deleteKeys(cacheKeysToDelete);
+    // Force flush after bulk delete to ensure consistency for revalidation
+    await this.tagsBuffer.flush();
   }
 
   // ============================================================================
