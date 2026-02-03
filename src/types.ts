@@ -20,23 +20,6 @@ export interface CacheHandlerConfig {
    * - 'gcs': Use Google Cloud Storage (production/Pantheon)
    */
   type?: 'auto' | 'file' | 'gcs';
-
-  /**
-   * Logging configuration for debugging cache operations.
-   */
-  logging?: {
-    /**
-     * Enable logging.
-     * @default true in non-build phases
-     */
-    enabled?: boolean;
-
-    /**
-     * Log level threshold.
-     * @default 'info'
-     */
-    level?: 'debug' | 'info' | 'warn' | 'error';
-  };
 }
 
 // ============================================================================

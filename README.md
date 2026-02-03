@@ -58,16 +58,10 @@ interface CacheHandlerConfig {
    * - 'gcs': Use Google Cloud Storage (production/Pantheon)
    */
   type?: 'auto' | 'file' | 'gcs';
-
-  /**
-   * Logging configuration for debugging cache operations.
-   */
-  logging?: {
-    enabled?: boolean;
-    level?: 'debug' | 'info' | 'warn' | 'error';
-  };
 }
 ```
+
+> **Note:** Debug logging is controlled via the `CACHE_DEBUG` environment variable. See the [Debugging](#debugging) section for details.
 
 ## Environment Variables
 
@@ -75,6 +69,7 @@ interface CacheHandlerConfig {
 |----------|-------------|----------|
 | `CACHE_BUCKET` | GCS bucket name for storing cache | Required for GCS handler |
 | `OUTBOUND_PROXY_ENDPOINT` | Edge cache proxy endpoint | Optional (enables edge cache clearing) |
+| `CACHE_DEBUG` | Enable debug logging (`true` or `1`) | Optional |
 
 ## API Reference
 
@@ -164,6 +159,44 @@ On each new build, the handler automatically:
 3. Preserves the data cache (Fetch Cache)
 
 This matches Next.js's expected behavior where route cache is invalidated on each deploy but data cache persists.
+
+## Debugging
+
+Enable debug logging to see detailed cache operations by setting the `CACHE_DEBUG` environment variable:
+
+```bash
+# Enable debug logging
+CACHE_DEBUG=true npm run start
+
+# Or
+CACHE_DEBUG=1 npm run start
+```
+
+### Log Levels
+
+The cache handler uses four log levels:
+
+| Level | When Shown | Use Case |
+|-------|------------|----------|
+| `debug` | Only when `CACHE_DEBUG=true` | Verbose operational logs (GET, SET, HIT, MISS) |
+| `info` | Only when `CACHE_DEBUG=true` | Important events (initialization, cache cleared) |
+| `warn` | Always | Recoverable issues that might need attention |
+| `error` | Always | Errors that affect cache operations |
+
+### Example Output
+
+When debug logging is enabled, you'll see output like:
+
+```
+[GcsCacheHandler] Initializing cache handler
+[GcsCacheHandler] GET: /api/posts
+[GcsCacheHandler] HIT: /api/posts (route)
+[GcsCacheHandler] SET: /api/users (fetch)
+[EdgeCacheClear] Cleared 3 paths in 45ms
+[GcsCacheHandler] Revalidated 5 entries for tags: posts, blog
+```
+
+This helps diagnose cache behavior, verify cache hits/misses, and troubleshoot invalidation issues.
 
 ## License
 
