@@ -198,6 +198,59 @@ When debug logging is enabled, you'll see output like:
 
 This helps diagnose cache behavior, verify cache hits/misses, and troubleshoot invalidation issues.
 
+## Publishing
+
+### Prerequisites
+
+1. Ensure you're logged into npm with access to the `@pantheon-systems` scope:
+   ```bash
+   npm login --scope=@pantheon-systems
+   ```
+
+2. Verify your login:
+   ```bash
+   npm whoami
+   ```
+
+### Publishing Steps
+
+1. **Update the version** in `package.json`:
+   ```bash
+   # Patch release (0.1.0 -> 0.1.1)
+   npm version patch
+
+   # Minor release (0.1.0 -> 0.2.0)
+   npm version minor
+
+   # Major release (0.1.0 -> 1.0.0)
+   npm version major
+   ```
+
+2. **Build and test**:
+   ```bash
+   npm run build
+   npm test
+   ```
+
+3. **Publish to npm**:
+   ```bash
+   npm publish --access public
+   ```
+
+   The `--access public` flag is required for scoped packages to be publicly accessible.
+
+### Verify Publication
+
+After publishing, verify the package is available:
+```bash
+npm view @pantheon-systems/nextjs-cache-handler
+```
+
+Or install it in a test project:
+```bash
+npm install @pantheon-systems/nextjs-cache-handler
+```
+
 ## License
 
 MIT
