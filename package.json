@@ -50,5 +50,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/pantheon-systems/nextjs-cache-handler"
+  },
+  "homepage": "https://github.com/pantheon-systems/nextjs-cache-handler#readme",
+  "bugs": {
+    "url": "https://github.com/pantheon-systems/nextjs-cache-handler/issues"
   }
 }
