@@ -41,6 +41,9 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const {slug} = await params
   const blog: BlogPost | null = await getBlogPost(slug);
 
+  // Capture the generation time - this changes when ISR refreshes
+  const generatedAt = new Date();
+
   if (!blog) {
     notFound();
   }
@@ -48,13 +51,27 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
       <div className="mx-auto max-w-3xl px-6 py-12">
-        <nav className="mb-8">
+        <nav className="mb-8 flex items-center justify-between">
           <Link
             href="/blogs"
             className="inline-flex items-center gap-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
           >
             ← Back to Blog
           </Link>
+
+          {/* ISR indicator */}
+          <div className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded px-2 py-1">
+            <span className="font-medium">ISR:</span>{' '}
+            <time className="font-mono" dateTime={generatedAt.toISOString()}>
+              {generatedAt.toLocaleString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true,
+              })}
+            </time>
+            <span className="text-amber-500 dark:text-amber-500 ml-1">(10min)</span>
+          </div>
         </nav>
 
         <article className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">

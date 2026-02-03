@@ -26,6 +26,9 @@ export default async function BlogsPage() {
   // Next.js will automatically cache this with ISR
   const blogs: BlogPost[] = await getBlogPosts();
 
+  // Capture the generation time - this changes when ISR refreshes
+  const generatedAt = new Date();
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
       <div className="mx-auto max-w-4xl px-6 py-12">
@@ -36,6 +39,33 @@ export default async function BlogsPage() {
           <p className="text-lg text-zinc-600 dark:text-zinc-400">
             Thoughts, tutorials, and insights about web development
           </p>
+
+          {/* ISR indicator - shows when the page was generated */}
+          <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="font-medium">ISR Status</span>
+            </div>
+            <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+              Page generated at:{' '}
+              <time className="font-mono font-semibold" dateTime={generatedAt.toISOString()}>
+                {generatedAt.toLocaleString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  hour12: true,
+                })}
+              </time>
+            </p>
+            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+              Revalidates every 5 minutes (300s). Refresh the page after this time to see a new timestamp.
+            </p>
+          </div>
         </header>
 
         <div className="grid gap-8">

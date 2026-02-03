@@ -4,8 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build:cache-handler": "tsc -p cacheHandler/tsconfig.json",
-    "build": "npm run build:cache-handler && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "test:integration": "jest",
