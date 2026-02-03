@@ -1,3 +1,7 @@
+import { createLogger } from '../utils/logger.js';
+
+const edgeLog = createLogger('EdgeCacheClear');
+
 /**
  * Result of a cache clear operation.
  * @internal
@@ -57,7 +61,7 @@ export class EdgeCacheClear {
         };
       }
 
-      console.log(`[EdgeCacheClear] Cleared entire edge cache in ${duration}ms`);
+      edgeLog.debug(`Cleared entire edge cache in ${duration}ms`);
       return { success: true, statusCode: response.status, duration };
     } catch (error) {
       const duration = Date.now() - startTime;
@@ -86,7 +90,7 @@ export class EdgeCacheClear {
       const successCount = results.filter((r) => r.success).length;
       const clearedPaths = results.filter((r) => r.success).map((r) => r.path);
 
-      console.log(`[EdgeCacheClear] Cleared ${successCount}/${paths.length} paths in ${duration}ms`);
+      edgeLog.debug(`Cleared ${successCount}/${paths.length} paths in ${duration}ms`);
 
       return {
         success: successCount > 0,
@@ -126,11 +130,11 @@ export class EdgeCacheClear {
       if (response.ok) {
         results.push({ path: routePath, success: true });
       } else {
-        console.warn(`[EdgeCacheClear] Failed to clear path ${routePath}: HTTP ${response.status}`);
+        edgeLog.warn(`Failed to clear path ${routePath}: HTTP ${response.status}`);
         results.push({ path: routePath, success: false });
       }
     } catch (error) {
-      console.warn(`[EdgeCacheClear] Error clearing path ${routePath}:`, error);
+      edgeLog.warn(`Error clearing path ${routePath}:`, error);
       results.push({ path: routePath, success: false });
     }
   }
@@ -151,15 +155,13 @@ export class EdgeCacheClear {
     this.clearPaths(paths)
       .then((result) => {
         if (result.success) {
-          console.log(
-            `[EdgeCacheClear] Background path clear for ${context}: ${result.paths?.length} paths cleared`
-          );
+          edgeLog.debug(`Background path clear for ${context}: ${result.paths?.length} paths cleared`);
         } else {
-          console.warn(`[EdgeCacheClear] Background path clear failed for ${context}: ${result.error}`);
+          edgeLog.warn(`Background path clear failed for ${context}: ${result.error}`);
         }
       })
       .catch((error) => {
-        console.error(`[EdgeCacheClear] Background path clear error for ${context}:`, error);
+        edgeLog.error(`Background path clear error for ${context}:`, error);
       });
   }
 
@@ -190,7 +192,7 @@ export class EdgeCacheClear {
       const successCount = results.filter((r) => r.success).length;
       const clearedKeys = results.filter((r) => r.success).map((r) => r.key);
 
-      console.log(`[EdgeCacheClear] Cleared ${successCount}/${keys.length} keys in ${duration}ms`);
+      edgeLog.debug(`Cleared ${successCount}/${keys.length} keys in ${duration}ms`);
 
       return {
         success: successCount > 0,
@@ -227,11 +229,11 @@ export class EdgeCacheClear {
       if (response.ok) {
         results.push({ key, success: true });
       } else {
-        console.warn(`[EdgeCacheClear] Failed to clear key ${key}: HTTP ${response.status}`);
+        edgeLog.warn(`Failed to clear key ${key}: HTTP ${response.status}`);
         results.push({ key, success: false });
       }
     } catch (error) {
-      console.warn(`[EdgeCacheClear] Error clearing key ${key}:`, error);
+      edgeLog.warn(`Error clearing key ${key}:`, error);
       results.push({ key, success: false });
     }
   }
@@ -245,15 +247,13 @@ export class EdgeCacheClear {
     this.clearKeys(keys)
       .then((result) => {
         if (result.success) {
-          console.log(
-            `[EdgeCacheClear] Background key clear for ${context}: ${result.paths?.length} keys cleared`
-          );
+          edgeLog.debug(`Background key clear for ${context}: ${result.paths?.length} keys cleared`);
         } else {
-          console.warn(`[EdgeCacheClear] Background key clear failed for ${context}: ${result.error}`);
+          edgeLog.warn(`Background key clear failed for ${context}: ${result.error}`);
         }
       })
       .catch((error) => {
-        console.error(`[EdgeCacheClear] Background key clear error for ${context}:`, error);
+        edgeLog.error(`Background key clear error for ${context}:`, error);
       });
   }
 
@@ -264,13 +264,13 @@ export class EdgeCacheClear {
     this.nukeCache()
       .then((result) => {
         if (result.success) {
-          console.log(`[EdgeCacheClear] Background nuke successful for ${context} (${result.duration}ms)`);
+          edgeLog.debug(`Background nuke successful for ${context} (${result.duration}ms)`);
         } else {
-          console.warn(`[EdgeCacheClear] Background nuke failed for ${context}: ${result.error}`);
+          edgeLog.warn(`Background nuke failed for ${context}: ${result.error}`);
         }
       })
       .catch((error) => {
-        console.error(`[EdgeCacheClear] Background nuke error for ${context}:`, error);
+        edgeLog.error(`Background nuke error for ${context}:`, error);
       });
   }
 }

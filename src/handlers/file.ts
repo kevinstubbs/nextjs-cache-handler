@@ -10,6 +10,9 @@ import type {
 import { BaseCacheHandler, type BuildMeta } from './base.js';
 import { getStaticRoutes } from '../utils/static-routes.js';
 import { TagsBuffer } from '../utils/tags-buffer.js';
+import { createLogger } from '../utils/logger.js';
+
+const fileLog = createLogger('FileCacheHandler');
 
 const writeFile = promisify(fs.writeFile);
 const readFile = promisify(fs.readFile);
@@ -62,7 +65,7 @@ export class FileCacheHandler extends BaseCacheHandler {
       fs.mkdirSync(this.tagsDir, { recursive: true });
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
-        console.error('[FileCacheHandler] Error creating cache directories:', error);
+        this.log.error('Error creating cache directories:', error);
       }
     }
   }
@@ -102,7 +105,7 @@ export class FileCacheHandler extends BaseCacheHandler {
       const data = fs.readFileSync(this.tagsMapFile, 'utf-8');
       return JSON.parse(data);
     } catch (error) {
-      console.warn('[FileCacheHandler] Error reading tags mapping:', error);
+      this.log.warn('Error reading tags mapping:', error);
       return {};
     }
   }
@@ -123,7 +126,7 @@ export class FileCacheHandler extends BaseCacheHandler {
     try {
       fs.writeFileSync(this.tagsMapFile, JSON.stringify(tagsMapping, null, 2), 'utf-8');
     } catch (error) {
-      console.error('[FileCacheHandler] Error writing tags mapping:', error);
+      this.log.error('Error writing tags mapping:', error);
       throw error; // Re-throw so buffer can retry
     }
   }
@@ -138,7 +141,7 @@ export class FileCacheHandler extends BaseCacheHandler {
       this.tagsBuffer.addTags(cacheKey, tags);
     }
     // Updates are queued and will be flushed automatically
-    console.log(`[FileCacheHandler] Queued tags update for ${cacheKey} (pending: ${this.tagsBuffer.pendingCount})`);
+    this.log.debug(`Queued tags update for ${cacheKey} (pending: ${this.tagsBuffer.pendingCount})`);
   }
 
   /**
@@ -185,7 +188,7 @@ export class FileCacheHandler extends BaseCacheHandler {
       const serializedData = this.serializeForStorage({ [cacheKey]: cacheValue });
       await writeFile(filePath, JSON.stringify(serializedData[cacheKey], null, 2), 'utf-8');
     } catch (error) {
-      console.error(`[FileCacheHandler] Error writing cache entry ${cacheKey}:`, error);
+      this.log.error(`Error writing cache entry ${cacheKey}:`, error);
     }
   }
 
@@ -195,7 +198,7 @@ export class FileCacheHandler extends BaseCacheHandler {
       await fs.promises.unlink(filePath);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        console.error(`[FileCacheHandler] Error deleting cache entry ${cacheKey}:`, error);
+        this.log.error(`Error deleting cache entry ${cacheKey}:`, error);
       }
       throw error;
     }
@@ -244,15 +247,15 @@ export async function getSharedCacheStats(): Promise<CacheStats> {
     await processCacheDirectory(fetchCacheDir, 'fetch', keys, entries);
     await processCacheDirectory(routeCacheDir, 'route', keys, entries);
 
-    console.log(
-      `[getSharedCacheStats] Found ${keys.length} cache entries ` +
+    fileLog.debug(
+      `Found ${keys.length} cache entries ` +
         `(${keys.filter((k) => k.startsWith('fetch:')).length} fetch, ` +
         `${keys.filter((k) => k.startsWith('route:')).length} route)`
     );
 
     return { size: keys.length, keys, entries };
   } catch (error) {
-    console.log(`[getSharedCacheStats] Error reading cache directories:`, error);
+    fileLog.error('Error reading cache directories:', error);
     return { size: 0, keys: [], entries: [] };
   }
 }
@@ -330,10 +333,10 @@ export async function clearSharedCache(): Promise<number> {
     // Clear tags mapping
     await clearTagsMapping(tagsFilePath);
 
-    console.log(`[clearSharedCache] Total cleared: ${clearedCount} cache entries`);
+    fileLog.info(`Total cleared: ${clearedCount} cache entries`);
     return clearedCount;
   } catch (error) {
-    console.log(`[clearSharedCache] Error clearing cache directories:`, error);
+    fileLog.error('Error clearing cache directories:', error);
     return 0;
   }
 }
@@ -347,7 +350,7 @@ async function clearFetchCache(dir: string): Promise<number> {
       await fs.promises.unlink(path.join(dir, file));
     }
 
-    console.log(`[clearSharedCache] Cleared ${jsonFiles.length} fetch cache entries`);
+    fileLog.debug(`Cleared ${jsonFiles.length} fetch cache entries`);
     return jsonFiles.length;
   } catch {
     return 0;
@@ -377,7 +380,7 @@ async function clearRouteCache(
       cleared++;
     }
 
-    console.log(`[clearSharedCache] Route cache: cleared ${cleared}, preserved ${preserved} static routes`);
+    fileLog.debug(`Route cache: cleared ${cleared}, preserved ${preserved} static routes`);
   } catch {
     // Directory might not exist
   }

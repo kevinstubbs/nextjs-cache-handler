@@ -1,3 +1,5 @@
+import { createLogger } from './logger.js';
+
 /**
  * Buffered tags manager for GCS to avoid rate limiting.
  * GCS has a rate limit of 1 write per second per object.
@@ -29,7 +31,7 @@ export class TagsBuffer {
   private readonly flushIntervalMs: number;
   private readonly readTagsMapping: () => Promise<Record<string, string[]>>;
   private readonly writeTagsMapping: (tagsMapping: Record<string, string[]>) => Promise<void>;
-  private readonly handlerName: string;
+  private readonly log: ReturnType<typeof createLogger>;
 
   private pendingUpdates: PendingUpdate[] = [];
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -41,7 +43,7 @@ export class TagsBuffer {
     this.flushIntervalMs = config.flushIntervalMs ?? 1000;
     this.readTagsMapping = config.readTagsMapping;
     this.writeTagsMapping = config.writeTagsMapping;
-    this.handlerName = config.handlerName ?? 'TagsBuffer';
+    this.log = createLogger(config.handlerName ?? 'TagsBuffer');
   }
 
   /**
@@ -137,7 +139,7 @@ export class TagsBuffer {
     this.flushTimer = setTimeout(() => {
       this.flushTimer = null;
       this.flush().catch((error) => {
-        console.error(`[${this.handlerName}] Error during scheduled flush:`, error);
+        this.log.error('Error during scheduled flush:', error);
       });
     }, delay);
   }
@@ -164,18 +166,18 @@ export class TagsBuffer {
       await this.writeTagsMapping(tagsMapping);
 
       this.lastFlushTime = Date.now();
-      console.log(`[${this.handlerName}] Flushed ${updates.length} tag updates`);
+      this.log.debug(`Flushed ${updates.length} tag updates`);
     } catch (error) {
       // On failure, put updates back for retry
       this.pendingUpdates = [...updates, ...this.pendingUpdates];
-      console.error(`[${this.handlerName}] Error flushing tags, will retry:`, error);
+      this.log.error('Error flushing tags, will retry:', error);
 
       // Schedule a retry with backoff
       if (!this.flushTimer) {
         this.flushTimer = setTimeout(() => {
           this.flushTimer = null;
           this.flush().catch((e) => {
-            console.error(`[${this.handlerName}] Retry flush failed:`, e);
+            this.log.error('Retry flush failed:', e);
           });
         }, this.flushIntervalMs * 2);
       }

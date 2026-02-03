@@ -10,6 +10,7 @@ import type {
 } from '../types.js';
 import { serializeForStorage, deserializeFromStorage } from '../utils/serialization.js';
 import { getBuildId, isBuildPhase } from '../utils/build-detection.js';
+import { createLogger, type Logger } from '../utils/logger.js';
 
 // Global singleton to track if build invalidation has been checked for this process
 let buildInvalidationChecked = false;
@@ -35,14 +36,16 @@ export interface BuildMeta {
 export abstract class BaseCacheHandler {
   protected readonly context: FileSystemCacheContext;
   protected readonly handlerName: string;
+  protected readonly log: Logger;
 
   constructor(context: FileSystemCacheContext, handlerName: string) {
     this.context = context;
     this.handlerName = handlerName;
+    this.log = createLogger(handlerName);
 
     // Only log during server runtime, not during build (too noisy with parallel workers)
     if (!isBuildPhase()) {
-      console.log(`[${this.handlerName}] Initializing cache handler`);
+      this.log.info('Initializing cache handler');
     }
   }
 
@@ -93,7 +96,7 @@ export abstract class BaseCacheHandler {
 
       await this.writeTagsMapping(tagsMapping);
     } catch (error) {
-      console.error(`[${this.handlerName}] Error updating tags mapping:`, error);
+      this.log.error('Error updating tags mapping:', error);
     }
   }
 
@@ -105,7 +108,7 @@ export abstract class BaseCacheHandler {
       this.removeKeysFromAllTags(tagsMapping, cacheKeysToDelete);
       await this.writeTagsMapping(tagsMapping);
     } catch (error) {
-      console.error(`[${this.handlerName}] Error bulk updating tags mapping:`, error);
+      this.log.error('Error bulk updating tags mapping:', error);
     }
   }
 
@@ -147,9 +150,7 @@ export abstract class BaseCacheHandler {
       const buildMeta = await this.readBuildMeta();
 
       if (buildMeta.buildId !== currentBuildId) {
-        console.log(
-          `[${this.handlerName}] New build detected (${buildMeta.buildId} -> ${currentBuildId}), invalidating route cache`
-        );
+        this.log.info(`New build detected (${buildMeta.buildId} -> ${currentBuildId}), invalidating route cache`);
 
         await this.invalidateRouteCache();
 
@@ -223,25 +224,25 @@ export abstract class BaseCacheHandler {
     cacheKey: CacheHandlerParametersGet[0],
     ctx?: CacheHandlerParametersGet[1]
   ): Promise<CacheHandlerValue | null> {
-    console.log(`[${this.handlerName}] GET: ${cacheKey}`);
+    this.log.debug(`GET: ${cacheKey}`);
 
     try {
       const cacheType = this.determineCacheType(ctx);
       const entry = await this.readCacheEntry(cacheKey, cacheType);
 
       if (!entry) {
-        console.log(`[${this.handlerName}] MISS: ${cacheKey} (${cacheType})`);
+        this.log.debug(`MISS: ${cacheKey} (${cacheType})`);
         return null;
       }
 
-      console.log(`[${this.handlerName}] HIT: ${cacheKey} (${cacheType})`, {
+      this.log.debug(`HIT: ${cacheKey} (${cacheType})`, {
         entryType: typeof entry,
         hasValue: entry && typeof entry === 'object' && 'value' in entry,
       });
 
       return entry;
     } catch (error) {
-      console.error(`[${this.handlerName}] Error reading cache for key ${cacheKey}:`, error);
+      this.log.error(`Error reading cache for key ${cacheKey}:`, error);
       return null;
     }
   }
@@ -256,7 +257,7 @@ export abstract class BaseCacheHandler {
   ): Promise<void> {
     const cacheType = this.determineCacheTypeFromValue(incrementalCacheValue);
 
-    console.log(`[${this.handlerName}] SET: ${cacheKey} (${cacheType})`, {
+    this.log.debug(`SET: ${cacheKey} (${cacheType})`, {
       valueType: typeof incrementalCacheValue,
       hasKind: incrementalCacheValue && typeof incrementalCacheValue === 'object' && 'kind' in incrementalCacheValue,
     });
@@ -274,7 +275,7 @@ export abstract class BaseCacheHandler {
 
       if (tags.length > 0) {
         await this.updateTagsMapping(cacheKey, tags);
-        console.log(`[${this.handlerName}] Updated tags mapping for ${cacheKey} with tags:`, tags);
+        this.log.debug(`Updated tags mapping for ${cacheKey} with tags:`, tags);
       }
 
       // For route cache updates (ISR), trigger edge cache invalidation
@@ -282,14 +283,14 @@ export abstract class BaseCacheHandler {
         this.onRouteCacheSet(cacheKey);
       }
 
-      console.log(`[${this.handlerName}] Cached ${cacheKey} in ${cacheType} cache`);
+      this.log.debug(`Cached ${cacheKey} in ${cacheType} cache`);
     } catch (error) {
-      console.error(`[${this.handlerName}] Error setting cache for key ${cacheKey}:`, error);
+      this.log.error(`Error setting cache for key ${cacheKey}:`, error);
     }
   }
 
   async revalidateTag(tag: CacheHandlerParametersRevalidateTag[0]): Promise<void> {
-    console.log(`[${this.handlerName}] REVALIDATE TAG: ${tag}`);
+    this.log.debug(`REVALIDATE TAG: ${tag}`);
 
     const tagArray = [tag].flat();
     const deletedKeys: string[] = [];
@@ -298,7 +299,7 @@ export abstract class BaseCacheHandler {
     try {
       tagsMapping = await this.readTagsMapping();
     } catch (error) {
-      console.error(`[${this.handlerName}] Error reading tags mapping during revalidateTag:`, error);
+      this.log.error('Error reading tags mapping during revalidateTag:', error);
       tagsMapping = {};
     }
 
@@ -306,11 +307,11 @@ export abstract class BaseCacheHandler {
       const cacheKeysForTag = tagsMapping[currentTag] || [];
 
       if (cacheKeysForTag.length === 0) {
-        console.log(`[${this.handlerName}] No cache entries found for tag: ${currentTag}`);
+        this.log.debug(`No cache entries found for tag: ${currentTag}`);
         continue;
       }
 
-      console.log(`[${this.handlerName}] Found ${cacheKeysForTag.length} cache entries for tag: ${currentTag}`);
+      this.log.debug(`Found ${cacheKeysForTag.length} cache entries for tag: ${currentTag}`);
 
       for (const cacheKey of cacheKeysForTag) {
         const deleted = await this.tryDeleteCacheEntry(cacheKey);
@@ -322,10 +323,10 @@ export abstract class BaseCacheHandler {
 
     if (deletedKeys.length > 0) {
       await this.updateTagsMappingBulkDelete(deletedKeys, tagsMapping);
-      console.log(`[${this.handlerName}] Updated tags mapping after deleting ${deletedKeys.length} entries`);
+      this.log.debug(`Updated tags mapping after deleting ${deletedKeys.length} entries`);
     }
 
-    console.log(`[${this.handlerName}] Revalidated ${deletedKeys.length} entries for tags: ${tagArray.join(', ')}`);
+    this.log.info(`Revalidated ${deletedKeys.length} entries for tags: ${tagArray.join(', ')}`);
 
     // Hook for subclasses to perform additional cleanup (e.g., edge cache clearing)
     await this.onRevalidateComplete(tagArray, deletedKeys);
@@ -351,7 +352,7 @@ export abstract class BaseCacheHandler {
     // Try fetch cache first
     try {
       await this.deleteCacheEntry(cacheKey, 'fetch');
-      console.log(`[${this.handlerName}] Deleted fetch cache entry: ${cacheKey}`);
+      this.log.debug(`Deleted fetch cache entry: ${cacheKey}`);
       return true;
     } catch {
       // Entry might not exist in fetch cache
@@ -360,17 +361,17 @@ export abstract class BaseCacheHandler {
     // Try route cache
     try {
       await this.deleteCacheEntry(cacheKey, 'route');
-      console.log(`[${this.handlerName}] Deleted route cache entry: ${cacheKey}`);
+      this.log.debug(`Deleted route cache entry: ${cacheKey}`);
       return true;
     } catch {
-      console.warn(`[${this.handlerName}] Cache entry not found in either cache: ${cacheKey}`);
+      this.log.warn(`Cache entry not found in either cache: ${cacheKey}`);
     }
 
     return false;
   }
 
   resetRequestCache(): void {
-    console.log(`[${this.handlerName}] RESET REQUEST CACHE: No-op for this cache handler`);
+    this.log.debug('RESET REQUEST CACHE: No-op for this cache handler');
     // For persistent cache handlers, this is typically a no-op since we're not maintaining
     // per-request caches. The storage backend is the source of truth.
   }

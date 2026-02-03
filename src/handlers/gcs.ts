@@ -9,6 +9,9 @@ import { BaseCacheHandler, type BuildMeta } from './base.js';
 import { EdgeCacheClear, createEdgeCacheClearer } from '../edge/edge-cache-clear.js';
 import { getStaticRoutes } from '../utils/static-routes.js';
 import { TagsBuffer } from '../utils/tags-buffer.js';
+import { createLogger } from '../utils/logger.js';
+
+const gcsLog = createLogger('GcsCacheHandler');
 
 /**
  * Google Cloud Storage cache handler for production/Pantheon environments.
@@ -70,7 +73,7 @@ export class GcsCacheHandler extends BaseCacheHandler {
         });
       }
     } catch (error) {
-      console.error('[GcsCacheHandler] Error initializing tags mapping:', error);
+      this.log.error('Error initializing tags mapping:', error);
       // Don't throw - tags mapping will be created on first write
     }
   }
@@ -100,7 +103,7 @@ export class GcsCacheHandler extends BaseCacheHandler {
       const [data] = await file.download();
       return JSON.parse(data.toString());
     } catch (error) {
-      console.warn('[GcsCacheHandler] Error reading tags mapping:', error);
+      this.log.warn('Error reading tags mapping:', error);
       return {};
     }
   }
@@ -116,7 +119,7 @@ export class GcsCacheHandler extends BaseCacheHandler {
         metadata: { contentType: 'application/json' },
       });
     } catch (error) {
-      console.error('[GcsCacheHandler] Error writing tags mapping:', error);
+      this.log.error('Error writing tags mapping:', error);
       throw error; // Re-throw so buffer can retry
     }
   }
@@ -131,7 +134,7 @@ export class GcsCacheHandler extends BaseCacheHandler {
       this.tagsBuffer.addTags(cacheKey, tags);
     }
     // Updates are queued and will be flushed automatically
-    console.log(`[GcsCacheHandler] Queued tags update for ${cacheKey} (pending: ${this.tagsBuffer.pendingCount})`);
+    this.log.debug(`Queued tags update for ${cacheKey} (pending: ${this.tagsBuffer.pendingCount})`);
   }
 
   /**
@@ -190,7 +193,7 @@ export class GcsCacheHandler extends BaseCacheHandler {
         metadata: { contentType: 'application/json' },
       });
     } catch (error) {
-      console.error(`[GcsCacheHandler] Error writing cache entry ${cacheKey}:`, error);
+      this.log.error(`Error writing cache entry ${cacheKey}:`, error);
     }
   }
 
@@ -201,7 +204,7 @@ export class GcsCacheHandler extends BaseCacheHandler {
       await file.delete();
     } catch (error) {
       if (!error || typeof error !== 'object' || !('code' in error) || (error as { code: number }).code !== 404) {
-        console.error(`[GcsCacheHandler] Error deleting cache entry ${cacheKey}:`, error);
+        this.log.error(`Error deleting cache entry ${cacheKey}:`, error);
       }
       throw error;
     }
@@ -243,7 +246,7 @@ export class GcsCacheHandler extends BaseCacheHandler {
 
   private clearEdgeCache(context: string): void {
     if (!this.edgeCacheClearer) {
-      console.log(`[GcsCacheHandler] Edge cache clearer not configured, skipping edge cache clear for: ${context}`);
+      this.log.debug(`Edge cache clearer not configured, skipping edge cache clear for: ${context}`);
       return;
     }
 
@@ -315,7 +318,7 @@ export class GcsCacheHandler extends BaseCacheHandler {
 export async function getSharedCacheStats(): Promise<CacheStats> {
   const bucketName = process.env.CACHE_BUCKET;
   if (!bucketName) {
-    console.log('[getSharedCacheStats] CACHE_BUCKET environment variable not found');
+    gcsLog.debug('CACHE_BUCKET environment variable not found');
     return { size: 0, keys: [], entries: [] };
   }
 
@@ -332,15 +335,15 @@ export async function getSharedCacheStats(): Promise<CacheStats> {
     await processGcsCachePrefix(bucket, fetchCachePrefix, 'fetch', keys, entries);
     await processGcsCachePrefix(bucket, routeCachePrefix, 'route', keys, entries);
 
-    console.log(
-      `[getSharedCacheStats] Found ${keys.length} cache entries ` +
+    gcsLog.debug(
+      `Found ${keys.length} cache entries ` +
       `(${keys.filter((k) => k.startsWith('fetch:')).length} fetch, ` +
       `${keys.filter((k) => k.startsWith('route:')).length} route)`
     );
 
     return { size: keys.length, keys, entries };
   } catch (error) {
-    console.log(`[getSharedCacheStats] Error reading cache:`, error);
+    gcsLog.error('Error reading cache:', error);
     return { size: 0, keys: [], entries: [] };
   }
 }
@@ -360,7 +363,7 @@ async function processGcsCachePrefix(
       await processGcsFile(file, prefix, cacheType, keys, entries);
     }
   } catch (error) {
-    console.warn(`[getSharedCacheStats] Error reading ${cacheType} cache:`, error);
+    gcsLog.warn(`Error reading ${cacheType} cache:`, error);
   }
 }
 
@@ -400,7 +403,7 @@ async function processGcsFile(
 export async function clearSharedCache(): Promise<number> {
   const bucketName = process.env.CACHE_BUCKET;
   if (!bucketName) {
-    console.log('[clearSharedCache] CACHE_BUCKET environment variable not found');
+    gcsLog.debug('CACHE_BUCKET environment variable not found');
     return 0;
   }
 
@@ -425,7 +428,7 @@ export async function clearSharedCache(): Promise<number> {
     // Clear tags mapping
     await clearGcsTagsMapping(bucket, tagsFilePath);
 
-    console.log(`[clearSharedCache] Total cleared: ${clearedCount} cache entries`);
+    gcsLog.info(`Total cleared: ${clearedCount} cache entries`);
 
     // Clear edge cache if configured and entries were cleared
     if (clearedCount > 0) {
@@ -437,7 +440,7 @@ export async function clearSharedCache(): Promise<number> {
 
     return clearedCount;
   } catch (error) {
-    console.log(`[clearSharedCache] Error clearing cache:`, error);
+    gcsLog.error('Error clearing cache:', error);
     return 0;
   }
 }
@@ -450,10 +453,10 @@ async function clearGcsFetchCache(bucket: Bucket, prefix: string): Promise<numbe
     const deletePromises = jsonFiles.map((file) => file.delete());
     await Promise.all(deletePromises);
 
-    console.log(`[clearSharedCache] Cleared ${jsonFiles.length} fetch cache entries`);
+    gcsLog.debug(`Cleared ${jsonFiles.length} fetch cache entries`);
     return jsonFiles.length;
   } catch (error) {
-    console.warn('[clearSharedCache] Error clearing fetch cache:', error);
+    gcsLog.warn('Error clearing fetch cache:', error);
     return 0;
   }
 }
@@ -486,9 +489,9 @@ async function clearGcsRouteCache(
     await Promise.all(deletePromises);
     cleared = filesToDelete.length;
 
-    console.log(`[clearSharedCache] Route cache: cleared ${cleared}, preserved ${preserved} static routes`);
+    gcsLog.debug(`Route cache: cleared ${cleared}, preserved ${preserved} static routes`);
   } catch (error) {
-    console.warn('[clearSharedCache] Error clearing route cache:', error);
+    gcsLog.warn('Error clearing route cache:', error);
   }
 
   return { cleared, preserved };
