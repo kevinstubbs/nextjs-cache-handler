@@ -83,6 +83,27 @@ export { FileCacheHandler } from './handlers/file.js';
 export { GcsCacheHandler } from './handlers/gcs.js';
 
 // ============================================================================
+// Request context for tag tracking
+// ============================================================================
+
+export { RequestContext } from './utils/request-context.js';
+
+// ============================================================================
+// Surrogate-Key header propagation utilities
+// ============================================================================
+
+// Route handler wrapper (recommended approach)
+export { withSurrogateKey, type SurrogateKeyOptions } from './utils/with-surrogate-key.js';
+
+// Legacy middleware exports (Note: middleware runs before route, so tags may not be captured)
+export {
+  createSurrogateKeyMiddleware,
+  middleware as surrogateKeyMiddleware,
+  config as surrogateKeyMiddlewareConfig,
+  type SurrogateKeyMiddlewareConfig,
+} from './middleware/index.js';
+
+// ============================================================================
 // Type exports
 // ============================================================================
 
@@ -105,3 +126,27 @@ export type {
   SerializableValue,
   SerializedCacheData,
 } from './types.js';
+
+// ============================================================================
+// Next.js 16 'use cache' Handler Exports
+// ============================================================================
+
+export {
+  createUseCacheHandler,
+  UseCacheFileHandler,
+  UseCacheGcsHandler,
+  streamToBytes,
+  bytesToStream,
+  serializeUseCacheEntry,
+  deserializeUseCacheEntry,
+  getUseCacheStats,
+} from './use-cache/index.js';
+
+export type {
+  UseCacheEntry,
+  UseCacheHandler,
+  UseCacheHandlerConfig,
+  SerializedUseCacheEntry,
+  UseCacheStats,
+  UseCacheEntryInfo,
+} from './use-cache/index.js';

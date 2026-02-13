@@ -9,6 +9,18 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./use-cache": {
+      "import": "./dist/use-cache/index.js",
+      "types": "./dist/use-cache/index.d.ts"
+    },
+    "./utils": {
+      "import": "./dist/utils/index.js",
+      "types": "./dist/utils/index.d.ts"
+    },
+    "./middleware": {
+      "import": "./dist/middleware/index.js",
+      "types": "./dist/middleware/index.d.ts"
     }
   },
   "files": [
@@ -16,6 +28,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run build",
     "clean": "rm -rf dist",
     "test": "vitest run",
@@ -41,6 +54,7 @@
   "devDependencies": {
     "@types/node": "^20",
     "@vitest/coverage-v8": "^4.0.18",
+    "next": "^16.1.6",
     "typescript": "^5.0.0",
     "vitest": "^4.0.18"
   },
