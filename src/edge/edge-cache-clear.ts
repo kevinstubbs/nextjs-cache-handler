@@ -112,7 +112,10 @@ export class EdgeCacheClear {
       const normalizedPath = routePath.startsWith('/') ? routePath : `/${routePath}`;
       const cleanPath = normalizedPath.replace(/\/$/, '') || '/';
       const pathSegment = cleanPath === '/' ? '' : cleanPath.substring(1);
-      const url = `${this.baseUrl}/paths/${pathSegment}`;
+      // Double-encode because the edge-cache-clearer expects URL-encoded values.
+      const encodedPathSegment = encodeURIComponent(encodeURIComponent(pathSegment));
+      const url = `${this.baseUrl}/paths/${encodedPathSegment}`;
+      edgeLog.debug(`Clearing path from edge cache: ${routePath} (encoded: ${encodedPathSegment}, url: ${url})`);
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -211,7 +214,8 @@ export class EdgeCacheClear {
     results: { key: string; success: boolean }[]
   ): Promise<void> {
     try {
-      const url = `${this.baseUrl}/keys/${encodeURIComponent(key)}`;
+      // Double-encode because the edge-cache-clearer expects URL-encoded values.
+      const url = `${this.baseUrl}/keys/${encodeURIComponent(encodeURIComponent(key))}`;
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
